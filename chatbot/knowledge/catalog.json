@@ -1,0 +1,53 @@
+{
+  "pages": [
+    {
+      "filename": "index.html",
+      "title": "Bhutan Airlines Thailand",
+      "url": "index.html",
+      "category": "overview",
+      "aliases": ["home", "Bhutan Airlines", "OMG Experience", "Thailand"]
+    },
+    {
+      "filename": "destinations.html",
+      "title": "Destinations and Flight Information",
+      "url": "destinations.html",
+      "category": "destinations",
+      "aliases": ["Paro", "Gaya", "Kolkata", "routes", "schedule", "flights"]
+    },
+    {
+      "filename": "offers.html",
+      "title": "Current Fares and Group Offers",
+      "url": "offers.html",
+      "category": "fares",
+      "aliases": ["fare", "price", "group", "charter", "offer", "promotion"]
+    },
+    {
+      "filename": "travel_Info.html",
+      "title": "Travel Information",
+      "url": "travel_Info.html",
+      "category": "travel",
+      "aliases": ["baggage", "visa", "SDF", "liquids", "passport", "before you fly"]
+    },
+    {
+      "filename": "contact.html",
+      "title": "Contact the Bangkok Team",
+      "url": "contact.html",
+      "category": "contact",
+      "aliases": ["phone", "email", "office", "Bangkok", "reservation team"]
+    },
+    {
+      "filename": "book_hold.html",
+      "title": "Book and Hold",
+      "url": "book_hold.html",
+      "category": "booking",
+      "aliases": ["book", "hold", "reservation", "request", "passengers", "payment"]
+    },
+    {
+      "filename": "blog.html",
+      "title": "Travel Guides and Stories",
+      "url": "blog.html",
+      "category": "guides",
+      "aliases": ["guide", "story", "weather", "culture", "packing", "first visit"]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Literal
@@ -11,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .feedback import ALLOWED_OPTIONS, send_feedback
-from .knowledge import KnowledgePage, load_knowledge, select_context
+from .knowledge import KnowledgeChunk, load_knowledge, select_context
 from .prompts import SYSTEM_PROMPT, build_user_prompt
 
 
@@ -37,9 +38,12 @@ if not knowledge_path.is_absolute():
     knowledge_path = (CHATBOT_DIR / knowledge_path).resolve()
 
 try:
-    KNOWLEDGE: list[KnowledgePage] = load_knowledge(knowledge_path)
+    KNOWLEDGE: list[KnowledgeChunk] = load_knowledge(
+        knowledge_path,
+        CHATBOT_DIR / "knowledge" / "catalog.json",
+    )
     KNOWLEDGE_ERROR: str | None = None
-except (FileNotFoundError, OSError, RuntimeError) as error:
+except (FileNotFoundError, OSError, RuntimeError, ValueError) as error:
     KNOWLEDGE = []
     KNOWLEDGE_ERROR = str(error)
 
@@ -57,8 +61,16 @@ class ChatRequest(BaseModel):
     )
 
 
+class Reference(BaseModel):
+    title: str
+    section: str
+    url: str
+
+
 class ChatResponse(BaseModel):
     answer: str
+    references: list[Reference] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
     fallback: bool = False
 
 
@@ -111,6 +123,60 @@ def fallback_response() -> ChatResponse:
     )
 
 
+def parse_model_response(
+    raw_text: str,
+    selected_chunks: list[KnowledgeChunk],
+) -> ChatResponse:
+    try:
+        parsed = json.loads(raw_text)
+    except (json.JSONDecodeError, TypeError):
+        parsed = {"answer": raw_text}
+
+    if not isinstance(parsed, dict):
+        parsed = {"answer": raw_text}
+
+    answer = str(parsed.get("answer", "")).strip()
+    if not answer:
+        return fallback_response()
+
+    allowed_sources = {chunk.id: chunk for chunk in selected_chunks}
+    references: list[Reference] = []
+    seen_urls: set[str] = set()
+    source_ids = parsed.get("source_ids", [])
+    if isinstance(source_ids, list):
+        for source_id in source_ids:
+            chunk = allowed_sources.get(str(source_id))
+            if not chunk or chunk.url in seen_urls:
+                continue
+            seen_urls.add(chunk.url)
+            references.append(
+                Reference(
+                    title=chunk.page_title,
+                    section=chunk.section_title,
+                    url=chunk.url,
+                )
+            )
+            if len(references) == 4:
+                break
+
+    suggestions: list[str] = []
+    raw_suggestions = parsed.get("suggestions", [])
+    if isinstance(raw_suggestions, list):
+        for suggestion in raw_suggestions:
+            value = str(suggestion).strip()
+            if not value or len(value) > 180 or value in suggestions:
+                continue
+            suggestions.append(value)
+            if len(suggestions) == 3:
+                break
+
+    return ChatResponse(
+        answer=answer,
+        references=references,
+        suggestions=suggestions,
+    )
+
+
 def gemini_contents(request: ChatRequest, context: str) -> list[dict[str, object]]:
     contents: list[dict[str, object]] = []
     for item in request.history[-MAX_CONTEXT_MESSAGES:]:
@@ -139,7 +205,8 @@ async def health() -> dict[str, object]:
     return {
         "status": "ok" if KNOWLEDGE and GEMINI_API_KEY else "configuration_required",
         "gemini_configured": bool(GEMINI_API_KEY),
-        "knowledge_pages": [page.name for page in KNOWLEDGE],
+        "knowledge_pages": sorted({chunk.page_name for chunk in KNOWLEDGE}),
+        "knowledge_chunks": len(KNOWLEDGE),
         "knowledge_error": KNOWLEDGE_ERROR,
         "model": GEMINI_MODEL,
         "feedback_to": _clean_env("FEEDBACK_TO", "info@omgexp.com") or "info@omgexp.com",
@@ -151,7 +218,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     if not GEMINI_API_KEY or not KNOWLEDGE:
         return fallback_response()
 
-    context = select_context(KNOWLEDGE, request.message)
+    context, selected_chunks = select_context(KNOWLEDGE, request.message)
     contents = gemini_contents(request, context)
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -164,6 +231,22 @@ async def chat(request: ChatRequest) -> ChatResponse:
             # (finishReason=MAX_TOKENS) after reasoning consumes the budget.
             "maxOutputTokens": 1024,
             "thinkingConfig": {"thinkingBudget": 0},
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "answer": {"type": "STRING"},
+                    "source_ids": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"},
+                    },
+                    "suggestions": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"},
+                    },
+                },
+                "required": ["answer", "source_ids", "suggestions"],
+            },
         },
     }
 
@@ -179,10 +262,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
             response.raise_for_status()
             data = response.json()
-            answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            if not answer:
-                return fallback_response()
-            return ChatResponse(answer=answer)
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return parse_model_response(raw_text, selected_chunks)
     except (
         httpx.HTTPError,
         KeyError,
