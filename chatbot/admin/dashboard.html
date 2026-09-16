@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Chatbot Feedback | OMG Experience</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/admin/feedback.css">
+</head>
+<body>
+    <header class="admin-header">
+        <a class="admin-brand" href="/admin/feedback" aria-label="OMG Experience feedback dashboard">
+            <span class="admin-brand-mark" aria-hidden="true">BA</span>
+            <span>
+                <strong>OMG Experience</strong>
+                <small>AI ASSISTANT MONITOR</small>
+            </span>
+        </a>
+        <div class="admin-header-actions">
+            <span class="admin-live"><i aria-hidden="true"></i> Local database</span>
+            <button class="admin-text-button" id="change-token" type="button">Admin access</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="admin-intro" aria-labelledby="dashboard-title">
+            <div>
+                <p class="admin-eyebrow">Chatbot performance</p>
+                <h1 id="dashboard-title">Chatbot conversations</h1>
+                <p>Review every chatbot conversation, inspect individual responses, and understand feedback when visitors choose to provide it.</p>
+            </div>
+            <button class="admin-refresh" id="refresh-data" type="button">Refresh data</button>
+        </section>
+
+        <section class="admin-metrics" aria-label="Feedback summary">
+            <article class="admin-metric">
+                <span>Total conversations</span>
+                <strong id="metric-total">0</strong>
+                <small>All recorded threads</small>
+            </article>
+            <article class="admin-metric">
+                <span>Conversations today</span>
+                <strong id="metric-today">0</strong>
+                <small>Based on UTC</small>
+            </article>
+            <article class="admin-metric">
+                <span>Unique sessions</span>
+                <strong id="metric-sessions">0</strong>
+                <small>Anonymous user IDs</small>
+            </article>
+            <article class="admin-breakdown-card">
+                <span>Feedback mix</span>
+                <small id="feedback-total-label">0 submissions</small>
+                <div id="feedback-breakdown" class="admin-breakdown"></div>
+            </article>
+        </section>
+
+        <section class="admin-panel" aria-labelledby="sessions-title">
+            <div class="admin-panel-heading">
+                <div>
+                    <p class="admin-eyebrow">Session explorer</p>
+                    <h2 id="sessions-title">Recorded conversations</h2>
+                </div>
+                <span id="result-count">0 results</span>
+            </div>
+
+            <form class="admin-filters" id="feedback-filters">
+                <label>
+                    <span>Search conversations</span>
+                    <input id="search-filter" type="search" maxlength="120" placeholder="Question, answer, or session ID">
+                </label>
+                <label>
+                    <span>Feedback category</span>
+                    <select id="option-filter">
+                        <option value="">All conversations</option>
+                        <option value="__none__">No feedback yet</option>
+                        <option>The assistant was helpful</option>
+                        <option>Answers were incomplete or inaccurate</option>
+                        <option>I could not find booking or fare information</option>
+                        <option>The chat was hard to use</option>
+                        <option>Other</option>
+                    </select>
+                </label>
+                <button type="submit">Apply filters</button>
+                <button class="admin-reset" id="reset-filters" type="button">Reset</button>
+            </form>
+
+            <p class="admin-status" id="dashboard-status" role="status" aria-live="polite"></p>
+            <div class="admin-session-list" id="session-list"></div>
+            <nav class="admin-pagination" aria-label="Feedback pagination">
+                <button id="previous-page" type="button">Previous</button>
+                <span id="page-label">Page 1</span>
+                <button id="next-page" type="button">Next</button>
+            </nav>
+        </section>
+    </main>
+
+    <footer class="admin-footer">
+        <span>Bhutan Airlines Thailand · OMG Experience</span>
+        <span>Conversations appear after each assistant response; feedback remains optional.</span>
+    </footer>
+
+    <dialog class="admin-auth" id="token-dialog">
+        <form method="dialog" id="token-form">
+            <p class="admin-eyebrow">Protected access</p>
+            <h2>Enter the admin token</h2>
+            <p>Use the value configured as <code>ADMIN_DASHBOARD_TOKEN</code> on the API server.</p>
+            <label>
+                <span>Admin token</span>
+                <input id="token-input" type="password" autocomplete="current-password">
+            </label>
+            <p class="admin-auth-error" id="token-error" role="alert"></p>
+            <div>
+                <button class="admin-reset" id="clear-token" type="button">Clear saved token</button>
+                <button value="submit" type="submit">Continue</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="/admin/feedback.js" defer></script>
+</body>
+</html>

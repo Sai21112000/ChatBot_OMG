@@ -5,4 +5,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 chatbot/data/*.log
+chatbot/data/*.db
+chatbot/data/*.db-shm
+chatbot/data/*.db-wal
 .cursor/

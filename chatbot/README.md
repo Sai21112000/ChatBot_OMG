@@ -36,17 +36,50 @@ not supported because the widget communicates with the API over HTTP.
 ## Endpoints
 
 - `GET /health` checks API configuration and loaded knowledge.
-- `POST /api/feedback` emails a close-screen rating to `FEEDBACK_TO`. SMTP is used when configured; otherwise the Mac Mail app is used, with a local log backup.
-- `POST /api/chat` accepts:
+- `POST /api/feedback` attaches a close-screen rating to its existing
+  conversation in SQLite, then emails `FEEDBACK_TO`. SMTP is used when
+  configured; otherwise the Mac Mail app is used, with a local log backup.
+- `POST /api/chat` stores every user/assistant exchange and accepts:
 
 ```json
 {
+  "user_id": "anonymous-session-uuid",
+  "conversation_id": "conversation-uuid",
   "message": "What is the baggage allowance to Paro?",
   "history": [
     {"role": "user", "content": "I am flying from Bangkok"}
   ]
 }
 ```
+
+## Feedback storage
+
+Conversations and feedback are stored locally at `FEEDBACK_DATABASE_PATH`, which defaults to
+`chatbot/data/chatbot_feedback.db`. The `Chatbot_Feedback_Table` schema contains
+`id`, `conversation_id`, `user_id`, `chatbot_interaction`, `feedback`,
+`created_at`, and `updated_at`. Each conversation is created after its first
+assistant response and updated after every later response. Feedback remains an
+optional JSON value on that same record. IDs are anonymous UUIDs and timestamps
+are UTC.
+
+The persistence code is isolated in `server/feedback_store.py`. When deploying
+to AWS, replace `SQLiteFeedbackStore` with a DynamoDB-backed implementation of
+the same `FeedbackStore` interface and keep the existing API/widget payload.
+Local database files are runtime artifacts and are excluded from Git.
+
+## Feedback dashboard
+
+With the API running, open
+<http://127.0.0.1:8000/admin/feedback>. The dashboard shows every recorded
+conversation, conversation and feedback totals, category distribution,
+anonymous visitors, comments, and expandable message histories. Search and
+category filters operate directly against the conversation database.
+
+Local loopback access works without a token. Before exposing the API through a
+remote host, set a long random `ADMIN_DASHBOARD_TOKEN` in `chatbot/.env`. The
+dashboard will request this token and keep it only in browser `sessionStorage`;
+the protected API expects it as a Bearer token. Remote dashboard API access is
+blocked when no token is configured.
 
 ## Live-site integration
 

@@ -16,6 +16,7 @@
         ? new URL("../../Resources/Assests/logo-B3-header.webp", script.src).href
         : "Resources/Assests/logo-B3-header.webp";
     const MAX_CONTEXT_MESSAGES = 20;
+    const MAX_FEEDBACK_MESSAGES = 100;
     const PREVIEW_RETURN_DELAY_MS = 60_000;
     const SLIDE_INTERVAL_MS = 1500;
     const STATUS_INTERVAL_MS = 1800;
@@ -88,6 +89,7 @@
     const starters = pageEngagement.starters;
     const previewSessionKey = `omg-chat-preview-seen:${window.location.pathname}`;
     const feedbackSessionKey = "omg-chat-feedback-shown";
+    const userSessionKey = "omg-chat-user-id";
     const resourceUrl = (filename) => new URL(filename, window.location.href).href;
     const guidedFlows = {
         main: {
@@ -161,6 +163,30 @@
         "The chat was hard to use",
         "Other",
     ];
+
+    function createAnonymousUserId() {
+        if (typeof window.crypto?.randomUUID === "function") {
+            return window.crypto.randomUUID();
+        }
+        return `session_${Date.now().toString(36)}_${Math.random()
+            .toString(36)
+            .slice(2, 14)}`;
+    }
+
+    function getOrCreateUserId() {
+        try {
+            const existing = window.sessionStorage.getItem(userSessionKey);
+            if (existing) return existing;
+            const created = createAnonymousUserId();
+            window.sessionStorage.setItem(userSessionKey, created);
+            return created;
+        } catch {
+            return createAnonymousUserId();
+        }
+    }
+
+    const feedbackUserId = getOrCreateUserId();
+    let conversationId = createAnonymousUserId();
 
     const wrapper = document.createElement("div");
     wrapper.id = "omg-chatbot";
@@ -379,8 +405,7 @@
         const button = document.createElement("button");
         button.className = "omg-chat-suggestion";
         button.type = "button";
-        button.innerHTML = '<span aria-hidden="true">→</span><span></span>';
-        button.lastElementChild.textContent = question;
+        button.textContent = question;
         button.addEventListener("click", () => sendMessage(question));
         suggestions.appendChild(button);
     });
@@ -577,6 +602,7 @@
 
     function resetConversation() {
         history = [];
+        conversationId = createAnonymousUserId();
         windowElement.dataset.conversation = "false";
         messages.innerHTML = "";
         messages.dataset.active = "false";
@@ -827,45 +853,15 @@
         container.replaceChildren(fragment);
     }
 
-    function appendResponseExtras(message, references = [], followups = []) {
-        const validReferences = Array.isArray(references)
-            ? references.filter((reference) => {
-                if (!reference || typeof reference.url !== "string") return false;
-                try {
-                    return new URL(reference.url, window.location.href).origin === window.location.origin;
-                } catch {
-                    return false;
-                }
-            })
-            : [];
+    function appendResponseExtras(message, followups = []) {
         const validFollowups = Array.isArray(followups)
             ? followups.filter((item) => typeof item === "string" && item.trim()).slice(0, 3)
             : [];
 
-        if (!validReferences.length && !validFollowups.length) return;
+        if (!validFollowups.length) return;
 
         const extras = document.createElement("div");
         extras.className = "omg-chat-response-extras";
-
-        if (validReferences.length) {
-            const referencesBox = document.createElement("div");
-            referencesBox.className = "omg-chat-references";
-            const label = document.createElement("span");
-            label.className = "omg-chat-extras-label";
-            label.textContent = "References";
-            referencesBox.appendChild(label);
-
-            validReferences.forEach((reference) => {
-                const link = document.createElement("a");
-                link.className = "omg-chat-reference";
-                link.href = new URL(reference.url, window.location.href).href;
-                link.textContent = reference.section
-                    ? `${reference.title} — ${reference.section}`
-                    : reference.title;
-                referencesBox.appendChild(link);
-            });
-            extras.appendChild(referencesBox);
-        }
 
         if (validFollowups.length) {
             const followupBox = document.createElement("div");
@@ -897,12 +893,12 @@
         extras.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
-    function resolveAssistantMessage(message, content, references = [], followups = []) {
+    function resolveAssistantMessage(message, content, followups = []) {
         delete message.dataset.loading;
         message.removeAttribute("role");
         message.removeAttribute("aria-label");
         renderAssistantContent(message, content);
-        appendResponseExtras(message, references, followups);
+        appendResponseExtras(message, followups);
         message.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
@@ -953,7 +949,12 @@
             const response = await fetch(apiUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message, history: priorHistory }),
+                body: JSON.stringify({
+                    user_id: feedbackUserId,
+                    conversation_id: conversationId,
+                    message,
+                    history: priorHistory,
+                }),
             });
 
             if (!response.ok) {
@@ -970,7 +971,6 @@
             resolveAssistantMessage(
                 loadingMessage,
                 data.answer,
-                data.references,
                 data.suggestions
             );
         } catch (error) {
@@ -1060,6 +1060,9 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    user_id: feedbackUserId,
+                    conversation_id: conversationId,
+                    interaction: history.slice(-MAX_FEEDBACK_MESSAGES),
                     option: selected.value,
                     comment,
                 }),
